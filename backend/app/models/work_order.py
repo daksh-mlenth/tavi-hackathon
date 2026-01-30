@@ -82,7 +82,7 @@ class WorkOrder(Base):
         nullable=False,
     )
 
-    location_address = Column(String(500), nullable=False)
+    location_address = Column(String(500), nullable=True)
     location_city = Column(String(100))
     location_state = Column(String(50))
     location_zip = Column(String(20))
