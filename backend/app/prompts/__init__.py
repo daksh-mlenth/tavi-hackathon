@@ -5,7 +5,7 @@ All prompts are stored here for easy maintenance and version control.
 
 from app.prompts.work_order_prompts import (
     WORK_ORDER_PARSING_SYSTEM_PROMPT,
-    WORK_ORDER_PARSING_USER_PROMPT
+    WORK_ORDER_PARSING_USER_PROMPT,
 )
 
 from app.prompts.vendor_contact_prompts import (
@@ -14,12 +14,12 @@ from app.prompts.vendor_contact_prompts import (
     VENDOR_CONTACT_SMS_SYSTEM_PROMPT,
     VENDOR_CONTACT_SMS_USER_PROMPT,
     VENDOR_CONTACT_PHONE_SYSTEM_PROMPT,
-    VENDOR_CONTACT_PHONE_USER_PROMPT
+    VENDOR_CONTACT_PHONE_USER_PROMPT,
 )
 
 from app.prompts.response_parsing_prompts import (
     VENDOR_RESPONSE_PARSING_SYSTEM_PROMPT,
-    VENDOR_RESPONSE_PARSING_USER_PROMPT
+    VENDOR_RESPONSE_PARSING_USER_PROMPT,
 )
 
 __all__ = [

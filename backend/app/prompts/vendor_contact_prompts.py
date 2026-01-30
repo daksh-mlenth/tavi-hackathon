@@ -14,7 +14,7 @@ def VENDOR_CONTACT_EMAIL_USER_PROMPT(
     location_address: str,
     description: str,
     urgency: str,
-    preferred_date: str
+    preferred_date: str,
 ) -> str:
     """Generate user prompt for email vendor contact."""
     return f"""Generate an email message for {vendor_name} about this job:
@@ -41,7 +41,7 @@ def VENDOR_CONTACT_SMS_USER_PROMPT(
     location_address: str,
     description: str,
     urgency: str,
-    preferred_date: str
+    preferred_date: str,
 ) -> str:
     """Generate user prompt for SMS vendor contact."""
     return f"""Generate an SMS (under 160 chars) for {vendor_name} about this job:
@@ -68,7 +68,7 @@ def VENDOR_CONTACT_PHONE_USER_PROMPT(
     location_address: str,
     description: str,
     urgency: str,
-    preferred_date: str
+    preferred_date: str,
 ) -> str:
     """Generate user prompt for phone vendor contact."""
     return f"""Generate a phone script for calling {vendor_name} about this job:

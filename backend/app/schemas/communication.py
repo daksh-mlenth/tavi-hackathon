@@ -18,6 +18,6 @@ class CommunicationLogResponse(BaseModel):
     response: Optional[str] = None
     sent_successfully: bool
     timestamp: datetime
-    
+
     class Config:
         from_attributes = True

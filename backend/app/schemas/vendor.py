@@ -21,7 +21,7 @@ class VendorResponse(BaseModel):
     yelp_review_count: Optional[int] = None
     composite_score: Optional[float] = None
     created_at: datetime
-    
+
     class Config:
         from_attributes = True
 
