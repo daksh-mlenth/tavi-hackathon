@@ -220,7 +220,7 @@ Click "Generate Call Transcript" below to see the full conversation!`
     setIsCallGenerated(false)
     setGeneratedTranscript('')
     setConversation(prev => prev.filter(m => m.channel !== 'phone' || m.role === 'tavi'))
-    toast.info('Ready to generate new call transcript')
+    toast('Ready to generate new call transcript')
   }
 
   const generateCallTranscript = (): string => {
