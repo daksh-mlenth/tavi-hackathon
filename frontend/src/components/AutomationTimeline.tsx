@@ -40,7 +40,6 @@ export default function AutomationTimeline({ workOrderId, onComplete, onError }:
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    // Prevent multiple connections
     let eventSource: EventSource | null = null
     let isActive = true
 

@@ -397,7 +397,3 @@ This project demonstrates:
 - ✅ **Technical Aptitude**: Full-stack with AI agents, async processing, multi-modal communication
 - ✅ **Hustle**: Complete end-to-end application in tight timeline
 - ✅ **Taste**: Clean UI, intuitive workflows, production-ready architecture
-
-## 📜 License
-
-This code is owned by the hackathon participant and is not for production use by Tavi.

@@ -7,7 +7,6 @@ from app.models.quote import QuoteStatus
 
 
 class VendorDetails(BaseModel):
-    """Vendor information included in quote response"""
     id: UUID
     business_name: str
     phone: Optional[str] = None
@@ -21,7 +20,7 @@ class VendorDetails(BaseModel):
     yelp_review_count: Optional[int] = None
     composite_score: Optional[float] = None
     trade_specialties: Optional[List[str]] = None
-    price_level: Optional[str] = None  # $ to $$$$ from Google/Yelp
+    price_level: Optional[str] = None
     
     class Config:
         from_attributes = True
@@ -52,7 +51,7 @@ class QuoteResponse(BaseModel):
     id: UUID
     work_order_id: UUID
     vendor_id: UUID
-    vendor: Optional[VendorDetails] = None  # Include full vendor details
+    vendor: Optional[VendorDetails] = None
     price: Optional[float] = None
     availability_date: Optional[datetime] = None
     estimated_duration_hours: Optional[float] = None

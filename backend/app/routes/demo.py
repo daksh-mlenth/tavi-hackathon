@@ -17,7 +17,7 @@ router = APIRouter()
 class SimulateVendorReplyRequest(BaseModel):
     quote_id: str
     reply_message: str
-    channel: str  # 'email', 'sms', or 'phone'
+    channel: str
 
 
 @router.post("/simulate-vendor-reply")
@@ -35,7 +35,6 @@ async def simulate_vendor_reply(
     
     vendor = quote.vendor
     
-    # Simulate webhook call based on channel
     if request.channel == 'sms':
         from app.routes.webhooks import process_vendor_sms_response
         await process_vendor_sms_response(
@@ -54,14 +53,12 @@ async def simulate_vendor_reply(
             subject="Re: Service opportunity"
         )
     elif request.channel == 'phone':
-        # For phone, extract info from transcript using AI
         from app.services.ai_agent_service import AIAgentService
         from app.services.quote_service import QuoteService
         from datetime import datetime, timedelta
         
         ai_service = AIAgentService()
         
-        # Parse the call transcript to extract quote information
         parsed = await ai_service.parse_vendor_phone_response(
             transcript=request.reply_message,
             work_order_data={
@@ -70,16 +67,19 @@ async def simulate_vendor_reply(
             }
         )
         
-        # Generate one-liner summary for communication stream
         from app.services.communication_service import CommunicationService
         from app.models.communication_log import CommunicationChannel
         
         comm_service = CommunicationService(db)
         info = parsed.get('extracted_info', {})
         
+        from app.constants import get_currency_info
+        currency_info = get_currency_info(quote.work_order.location_country if quote.work_order else "United States")
+        currency_symbol = currency_info['symbol']
+        
         summary_parts = []
         if info.get('price'):
-            summary_parts.append(f"Price: ${info['price']}")
+            summary_parts.append(f"Price: {currency_symbol}{info['price']}")
         if info.get('availability_days'):
             summary_parts.append(f"Available in {info['availability_days']} days")
         if info.get('duration_hours'):
@@ -87,27 +87,24 @@ async def simulate_vendor_reply(
         
         summary = f"📞 Call Summary: {' | '.join(summary_parts) if summary_parts else 'Call completed - no quote provided'}"
         
-        # Log the phone call with summary in communication stream
         comm_service.log_communication(
             work_order_id=quote.work_order.id,
             vendor_id=quote.vendor.id,
             channel=CommunicationChannel.PHONE,
             direction="inbound",
-            message=summary,  # Store summary instead of full transcript
+            message=summary,
             sent_successfully=True,
             metadata={
-                "full_transcript": request.reply_message,  # Full transcript stored in metadata
+                "full_transcript": request.reply_message,
                 "extracted_info": info,
                 "source": "simulation"
             }
         )
         
-        # Update quote with extracted info
         if parsed.get('extracted_info'):
             info = parsed['extracted_info']
             quote_service = QuoteService(db)
             
-            # Convert availability_days to datetime
             availability_date = None
             if info.get('availability_days'):
                 days = int(info['availability_days'])
@@ -152,15 +149,17 @@ async def simulate_multiple_vendor_quotes(
     
     quotes = db.query(Quote).filter(Quote.work_order_id == work_order.id).all()
     
+    from app.constants import get_currency_info
+    currency_info = get_currency_info(work_order.location_country or "United States")
+    currency_symbol = currency_info['symbol']
+    
     responses = []
-    for quote in quotes[:5]:  # Simulate first 5 vendors responding
-        # Generate random but realistic quote
+    for quote in quotes[:5]:
         base_price = random.randint(150, 500)
         days = random.randint(1, 5)
         
-        vendor_message = f"Hi, I can do this job for ${base_price}. Available to start in {days} days. Quality work guaranteed!"
+        vendor_message = f"Hi, I can do this job for {currency_symbol}{base_price}. Available to start in {days} days. Quality work guaranteed!"
         
-        # Process the simulated reply
         from app.routes.webhooks import process_vendor_sms_response
         await process_vendor_sms_response(
             db=db,
@@ -200,7 +199,6 @@ async def simulate_facility_manager_confirmation(
     
     response_text = "APPROVED - Vendor selection looks good!" if request.approved else "REJECTED - Please select another vendor"
     
-    # Log facility manager response
     from app.services.communication_service import CommunicationService
     from app.models.communication_log import CommunicationChannel
     
@@ -222,7 +220,6 @@ async def simulate_facility_manager_confirmation(
     if request.approved:
         work_order.facility_confirmed = datetime.utcnow()
         
-        # If vendor also confirmed, dispatch
         if work_order.vendor_dispatch_confirmed:
             work_order.status = WorkOrderStatus.DISPATCHED
         
@@ -252,7 +249,6 @@ async def simulate_vendor_dispatch_confirmation(
     
     response_text = "CONFIRMED - I will be there on the scheduled date!" if request.confirmed else "Sorry, I cannot make it on that date. Can we reschedule?"
     
-    # Log vendor dispatch response
     from app.services.communication_service import CommunicationService
     from app.models.communication_log import CommunicationChannel
     
@@ -273,7 +269,6 @@ async def simulate_vendor_dispatch_confirmation(
     if request.confirmed:
         work_order.vendor_dispatch_confirmed = datetime.utcnow()
         
-        # If facility manager also confirmed, dispatch
         if work_order.facility_confirmed:
             work_order.status = WorkOrderStatus.DISPATCHED
         

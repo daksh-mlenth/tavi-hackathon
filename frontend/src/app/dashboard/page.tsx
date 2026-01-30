@@ -33,14 +33,12 @@ export default function Dashboard() {
     try {
       await api.updateWorkOrderStatus(workOrderId, 'completed')
       
-      // Update local state
       setWorkOrders(prev => prev.map(wo => 
         wo.id === workOrderId 
           ? { ...wo, status: 'completed' }
           : wo
       ))
       
-      // Show success toast (you'll need to add react-hot-toast)
       toast.success('✅ Work order marked as complete!')
     } catch (error) {
       console.error('Failed to mark as complete:', error)

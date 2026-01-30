@@ -22,38 +22,26 @@ from openai import AsyncOpenAI
 
 
 class VendorDiscoveryService:
-    """Service for discovering and scoring vendors using AI-powered search"""
-    
     def __init__(self, db: Session):
         self.db = db
         self.vendor_service = VendorService(db)
         self.gmaps = googlemaps.Client(key=settings.GOOGLE_PLACES_API_KEY) if settings.GOOGLE_PLACES_API_KEY else None
         self.openai_client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY) if settings.OPENAI_API_KEY else None
-        # 30 minutes drive ≈ 20km at average city speed
-        self.search_radius_meters = 20000  # 20km radius for 30-min drive
+        self.search_radius_meters = 20000
     
     async def discover_vendors_for_work_order(self, work_order: WorkOrder) -> List[Vendor]:
-        """
-        Discover vendors for a work order using AI-powered search:
-        1. Generate optimized search query using AI
-        2. Find vendors within 30-min drive radius
-        3. Score them based on Google + Yelp reviews (0-10 scale)
-        4. Store top vendors in database
-        """
         vendors = []
         
-        # Generate AI-powered search query
         search_queries = await self._generate_ai_search_queries(work_order)
         location = f"{work_order.location_address}, {work_order.location_city or ''}, {work_order.location_state or ''}"
         
         print(f"🤖 AI-generated search queries: {search_queries}")
         print(f"🔍 Searching within 30-min drive (~20km) of '{location}'")
         
-        # Search Google Places with AI-generated queries
         if self.gmaps:
             try:
                 all_places = []
-                for query in search_queries[:2]:  # Use top 2 search queries
+                for query in search_queries[:2]:
                     places_results = await self._search_google_places(
                         query=query,
                         location=location,
@@ -61,7 +49,6 @@ class VendorDiscoveryService:
                     )
                     all_places.extend(places_results)
                 
-                # Remove duplicates by place_id
                 seen_place_ids = set()
                 unique_places = []
                 for place in all_places:
@@ -70,7 +57,6 @@ class VendorDiscoveryService:
                         seen_place_ids.add(place_id)
                         unique_places.append(place)
                 
-                # Process and score vendors
                 for place in unique_places[:VENDOR_SEARCH_LIMIT]:
                     vendor_data = await self._process_and_score_vendor(place, work_order)
                     if vendor_data:
@@ -85,13 +71,10 @@ class VendorDiscoveryService:
             print("⚠️  No API keys configured, using mock vendors")
             vendors = self._create_mock_vendors(work_order)
         
-        # Sort by composite score (highest first)
         vendors.sort(key=lambda v: v.composite_score or 0, reverse=True)
         
-        # Create initial quotes for all discovered vendors so they show up on frontend
         from app.models.quote import Quote, QuoteStatus
         for vendor in vendors:
-            # Check if quote already exists
             existing_quote = (
                 self.db.query(Quote)
                 .filter(Quote.work_order_id == work_order.id, Quote.vendor_id == vendor.id)
@@ -101,7 +84,7 @@ class VendorDiscoveryService:
                 quote = Quote(
                     work_order_id=work_order.id,
                     vendor_id=vendor.id,
-                    status=QuoteStatus.PENDING,  # Waiting for human to review/request quote
+                    status=QuoteStatus.PENDING,
                     composite_score=vendor.composite_score
                 )
                 self.db.add(quote)
@@ -116,7 +99,6 @@ class VendorDiscoveryService:
         Returns multiple search query variations for better vendor discovery.
         """
         if not self.openai_client:
-            # Fallback to basic search queries
             return [TRADE_TYPE_SEARCH_QUERIES.get(work_order.trade_type.value, "contractor")]
         
         try:
@@ -159,7 +141,6 @@ Example: ["emergency plumber licensed insured", "24/7 plumbing repair service", 
         except Exception as e:
             print(f"⚠️  AI query generation failed: {e}")
         
-        # Fallback to basic queries
         base_query = TRADE_TYPE_SEARCH_QUERIES.get(work_order.trade_type.value, "contractor")
         return [
             base_query,
@@ -212,7 +193,6 @@ Example: ["emergency plumber licensed insured", "24/7 plumbing repair service", 
         """
         place_id = place.get('place_id')
         
-        # Get detailed information from Google
         if self.gmaps:
             try:
                 details = self.gmaps.place(place_id)['result']
@@ -237,9 +217,8 @@ Example: ["emergency plumber licensed insured", "24/7 plumbing repair service", 
         yelp_data = await self._search_yelp_business(business_name, address)
         yelp_rating = yelp_data.get('rating', 0) if yelp_data else 0
         yelp_review_count = yelp_data.get('review_count', 0) if yelp_data else 0
-        yelp_price = yelp_data.get('price') if yelp_data else None  # $ to $$$$
+        yelp_price = yelp_data.get('price') if yelp_data else None
         
-        # Calculate quality score (0-10 scale)
         quality_score = self._calculate_quality_score(
             google_rating=google_rating,
             google_reviews=google_review_count,
@@ -247,14 +226,12 @@ Example: ["emergency plumber licensed insured", "24/7 plumbing repair service", 
             yelp_reviews=yelp_review_count
         )
         
-        # Convert price level to display format ($ to $$$$)
         price_display = None
         if price_level is not None and price_level > 0:
             price_display = '$' * price_level
         elif yelp_price:
             price_display = yelp_price
         
-        # Store price info in source_data for frontend access
         enriched_details = details.copy()
         enriched_details['price_display'] = price_display
         enriched_details['yelp_data'] = yelp_data
@@ -302,26 +279,23 @@ Example: ["emergency plumber licensed insured", "24/7 plumbing repair service", 
         - R = actual rating
         - C = baseline rating (3.5 for conservative estimate)
         """
-        CONFIDENCE_THRESHOLD = 25  # Need 25+ reviews for full trust
-        BASELINE_RATING = 3.5  # Conservative baseline (out of 5)
+        CONFIDENCE_THRESHOLD = 25
+        BASELINE_RATING = 3.5
         
-        # Process Google data
         google_weighted = 0
         if google_rating > 0:
             v = google_reviews
             m = CONFIDENCE_THRESHOLD
-            R = google_rating  # Already 0-5 scale
+            R = google_rating
             C = BASELINE_RATING
             
-            # Bayesian weighted rating (0-5 scale)
             google_weighted = (v / (v + m)) * R + (m / (v + m)) * C
         
-        # Process Yelp data
         yelp_weighted = 0
         if yelp_rating > 0:
             v = yelp_reviews
             m = CONFIDENCE_THRESHOLD
-            R = yelp_rating  # Already 0-5 scale
+            R = yelp_rating
             C = BASELINE_RATING
             
             # Bayesian weighted rating (0-5 scale)
@@ -330,19 +304,14 @@ Example: ["emergency plumber licensed insured", "24/7 plumbing repair service", 
         # Combine scores (Google 60%, Yelp 40%)
         final_score = 0
         if google_weighted > 0 and yelp_weighted > 0:
-            # Both sources available
             final_score = (google_weighted * 0.6 + yelp_weighted * 0.4)
         elif google_weighted > 0:
-            # Only Google
             final_score = google_weighted
         elif yelp_weighted > 0:
-            # Only Yelp
             final_score = yelp_weighted
         else:
-            # No data - return baseline
             final_score = BASELINE_RATING
         
-        # Convert 0-5 scale to 0-10 scale
         score_out_of_10 = (final_score / 5.0) * 10
         
         return round(score_out_of_10, 1)
@@ -396,7 +365,7 @@ Example: ["emergency plumber licensed insured", "24/7 plumbing repair service", 
                 "google_review_count": 127,
                 "yelp_rating": 4.5,
                 "yelp_review_count": 89,
-                "composite_score": 9.2  # Excellent rating
+                "composite_score": 9.2
             },
             {
                 "business_name": f"Reliable {trade.title()} Services",
@@ -408,7 +377,7 @@ Example: ["emergency plumber licensed insured", "24/7 plumbing repair service", 
                 "google_review_count": 64,
                 "yelp_rating": 4.0,
                 "yelp_review_count": 42,
-                "composite_score": 8.3  # Good rating
+                "composite_score": 8.3
             },
             {
                 "business_name": f"Budget {trade.title()} Co",
@@ -420,7 +389,7 @@ Example: ["emergency plumber licensed insured", "24/7 plumbing repair service", 
                 "google_review_count": 28,
                 "yelp_rating": 3.5,
                 "yelp_review_count": 15,
-                "composite_score": 7.1  # Average rating
+                "composite_score": 7.1
             }
         ]
         

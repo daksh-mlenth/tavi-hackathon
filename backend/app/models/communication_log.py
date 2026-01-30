@@ -20,40 +20,32 @@ class CommunicationLog(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     
-    # Foreign Keys
     work_order_id = Column(UUID(as_uuid=True), ForeignKey("work_orders.id"), nullable=False)
     vendor_id = Column(UUID(as_uuid=True), ForeignKey("vendors.id"), nullable=True)
     
-    # Communication Details
     channel = Column(SQLEnum(CommunicationChannel), nullable=False)
-    direction = Column(String(20))  # 'outbound' or 'inbound'
+    direction = Column(String(20))
     
-    # Content
     subject = Column(String(500))
     message = Column(Text)
     response = Column(Text)
     
-    # Status
     sent_successfully = Column(Boolean, default=False)
     error_message = Column(Text)
     
-    # Phone-specific
     call_duration_seconds = Column(Float)
     call_recording_url = Column(String(500))
     call_transcript = Column(Text)
     
-    # AI Processing
     ai_model_used = Column(String(100))
     ai_prompt = Column(Text)
     ai_response = Column(Text)
-    ai_metadata = Column(JSON)  # Additional AI processing info
+    ai_metadata = Column(JSON)
     
-    # Metadata
-    external_id = Column(String(200))  # ID from external service (Twilio, SendGrid, etc.)
+    external_id = Column(String(200))
     timestamp = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)
     
-    # Relationships
     work_order = relationship("WorkOrder", back_populates="communication_logs")
     
     def __repr__(self):

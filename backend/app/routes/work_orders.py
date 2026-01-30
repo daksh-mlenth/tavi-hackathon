@@ -17,20 +17,12 @@ async def create_work_order(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
-    """
-    Create a new work order from natural language input.
-    The AI will parse the input and extract structured data.
-    """
     service = WorkOrderService(db)
     ai_service = AIAgentService()
     
-    # Parse natural language input
     parsed_data = await ai_service.parse_work_order_input(work_order_data.raw_input)
-    
-    # Create work order
     work_order = service.create_work_order(work_order_data, parsed_data)
     
-    # Start vendor discovery in background
     background_tasks.add_task(
         service.start_vendor_discovery_workflow,
         work_order.id
@@ -45,7 +37,6 @@ def list_work_orders(
     limit: int = 100,
     db: Session = Depends(get_db)
 ):
-    """List all work orders"""
     service = WorkOrderService(db)
     work_orders, total = service.list_work_orders(skip, limit)
     return WorkOrderList(work_orders=work_orders, total=total)
@@ -56,7 +47,6 @@ def get_work_order(
     work_order_id: UUID,
     db: Session = Depends(get_db)
 ):
-    """Get a specific work order by ID"""
     service = WorkOrderService(db)
     work_order = service.get_work_order(work_order_id)
     
@@ -72,7 +62,6 @@ def update_work_order_status(
     status_update: dict,
     db: Session = Depends(get_db)
 ):
-    """Update work order status"""
     from app.models.work_order import WorkOrderStatus
     
     service = WorkOrderService(db)
@@ -80,7 +69,6 @@ def update_work_order_status(
     if not work_order:
         raise HTTPException(status_code=404, detail="Work order not found")
     
-    # Update status
     new_status = status_update.get('status')
     if new_status:
         try:
@@ -99,14 +87,12 @@ async def discover_vendors(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
-    """Manually trigger vendor discovery for a work order"""
     service = WorkOrderService(db)
     
     work_order = service.get_work_order(work_order_id)
     if not work_order:
         raise HTTPException(status_code=404, detail="Work order not found")
     
-    # Start vendor discovery
     background_tasks.add_task(
         service.start_vendor_discovery_workflow,
         work_order_id
@@ -121,14 +107,12 @@ async def contact_vendors(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
-    """Contact all discovered vendors for quotes"""
     service = WorkOrderService(db)
     
     work_order = service.get_work_order(work_order_id)
     if not work_order:
         raise HTTPException(status_code=404, detail="Work order not found")
     
-    # Start vendor contact process
     background_tasks.add_task(
         service.start_vendor_contact_workflow,
         work_order_id

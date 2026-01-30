@@ -45,6 +45,6 @@ async def auto_handle_work_order_stream(
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-            "X-Accel-Buffering": "no"  # Disable buffering in nginx
+            "X-Accel-Buffering": "no"
         }
     )

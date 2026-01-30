@@ -40,24 +40,19 @@ async def confirm_vendor_selection(
     work_order = quote.work_order
     vendor = quote.vendor
     
-    # Update work order with selected vendor and facility manager info
     work_order.selected_vendor_id = vendor.id
     work_order.facility_manager_email = request.facility_manager_email
     work_order.facility_manager_name = request.facility_manager_name
     work_order.status = WorkOrderStatus.VENDOR_SELECTED
-    
-    # Mark quote as accepted
     quote.status = 'accepted'
     
     db.commit()
     
-    # Send facility manager confirmation email
     background_tasks.add_task(
         send_facility_manager_confirmation,
         db, work_order.id, vendor.id
     )
     
-    # Send vendor dispatch confirmation
     background_tasks.add_task(
         send_vendor_dispatch_confirmation,
         db, work_order.id, vendor.id
@@ -81,17 +76,19 @@ async def send_facility_manager_confirmation(db: Session, work_order_id: UUID, v
     comm_service = CommunicationService(db)
     ai_service = AIAgentService()
     
-    # Get quote details
     quote = db.query(Quote).filter(Quote.work_order_id == work_order_id, Quote.vendor_id == vendor_id).first()
     
-    # Generate confirmation email (simple version without currency symbol)
+    from app.constants import get_currency_info
+    currency_info = get_currency_info(work_order.location_country or "United States")
+    currency_symbol = currency_info['symbol']
+    
     email_content = f"""Dear {work_order.facility_manager_name},
 
 We have selected a vendor for the following work order:
 
 Work Order: {work_order.title}
 Vendor: {vendor.business_name}
-Price: ${quote.price if quote else 'N/A'}
+Price: {currency_symbol}{quote.price if quote else 'N/A'}
 Availability: {quote.availability_date if quote else 'TBD'}
 
 Please reply with "APPROVED" to confirm this selection, or "REJECT" with reasons if you have concerns.
@@ -115,7 +112,6 @@ Tavi Team"""
         }
     )
     
-    # Update status
     work_order.status = WorkOrderStatus.AWAITING_FACILITY_CONFIRMATION
     db.commit()
     
@@ -133,7 +129,6 @@ async def send_vendor_dispatch_confirmation(db: Session, work_order_id: UUID, ve
     
     comm_service = CommunicationService(db)
     
-    # Generate dispatch confirmation message
     message = f"""Hi {vendor.business_name},
 
 Great news! You have been selected for this job:
@@ -147,7 +142,6 @@ Please reply "CONFIRMED" to confirm you can start on the agreed date, or contact
 Thank you,
 Tavi Team"""
     
-    # Log the outbound dispatch confirmation
     comm_service.log_communication(
         work_order_id=work_order.id,
         vendor_id=vendor.id,
@@ -180,7 +174,6 @@ async def facility_manager_confirms(
     if 'APPROVED' in response or 'APPROVE' in response or 'YES' in response:
         work_order.facility_confirmed = datetime.utcnow()
         
-        # Check if vendor also confirmed
         if work_order.vendor_dispatch_confirmed:
             work_order.status = WorkOrderStatus.DISPATCHED
         
@@ -188,7 +181,17 @@ async def facility_manager_confirms(
         
         return {"status": "approved", "message": "Facility manager approved vendor selection"}
     else:
-        work_order.status = WorkOrderStatus.EVALUATING_QUOTES  # Go back to evaluation
+        # ✅ Reset vendor selection when facility manager rejects
+        selected_quote = db.query(Quote).filter(
+            Quote.work_order_id == work_order_id,
+            Quote.vendor_id == work_order.selected_vendor_id
+        ).first()
+        if selected_quote:
+            selected_quote.status = 'quoted'  # Reset to original status
+        
+        work_order.selected_vendor_id = None
+        work_order.facility_confirmed = None
+        work_order.status = WorkOrderStatus.EVALUATING_QUOTES
         db.commit()
         return {"status": "rejected", "message": "Vendor selection rejected by facility manager"}
 
@@ -210,7 +213,6 @@ async def vendor_confirms_dispatch(
         work_order.vendor_dispatch_confirmed = datetime.utcnow()
         work_order.status = WorkOrderStatus.AWAITING_VENDOR_DISPATCH
         
-        # Check if facility manager also confirmed
         if work_order.facility_confirmed:
             work_order.status = WorkOrderStatus.DISPATCHED
         
@@ -218,4 +220,18 @@ async def vendor_confirms_dispatch(
         
         return {"status": "confirmed", "message": "Vendor confirmed dispatch"}
     else:
-        return {"status": "pending", "message": "Vendor has not confirmed yet"}
+        # ✅ Reset vendor selection when vendor declines
+        selected_quote = db.query(Quote).filter(
+            Quote.work_order_id == work_order_id,
+            Quote.vendor_id == work_order.selected_vendor_id
+        ).first()
+        if selected_quote:
+            selected_quote.status = 'quoted'  # Reset to original status
+        
+        work_order.selected_vendor_id = None
+        work_order.facility_confirmed = None
+        work_order.vendor_dispatch_confirmed = None
+        work_order.status = WorkOrderStatus.EVALUATING_QUOTES
+        db.commit()
+        
+        return {"status": "declined", "message": "Vendor declined dispatch"}

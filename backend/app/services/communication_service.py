@@ -6,8 +6,6 @@ from app.models.communication_log import CommunicationLog, CommunicationChannel
 
 
 class CommunicationService:
-    """Service for managing communication logs"""
-    
     def __init__(self, db: Session):
         self.db = db
     
@@ -20,7 +18,6 @@ class CommunicationService:
         vendor_id: Optional[UUID] = None,
         **kwargs
     ) -> CommunicationLog:
-        """Log a communication event"""
         comm_log = CommunicationLog(
             work_order_id=work_order_id,
             vendor_id=vendor_id,
@@ -40,7 +37,6 @@ class CommunicationService:
         self,
         work_order_id: UUID
     ) -> List[dict]:
-        """Get all communications for a work order (unified stream) with vendor names"""
         from app.models.vendor import Vendor
         from sqlalchemy.orm import joinedload
         
@@ -51,7 +47,6 @@ class CommunicationService:
             .all()
         )
         
-        # Enrich with vendor names
         result = []
         for comm in comms:
             comm_dict = {
@@ -68,7 +63,6 @@ class CommunicationService:
                 "timestamp": comm.timestamp
             }
             
-            # Get vendor name if vendor_id exists
             if comm.vendor_id:
                 vendor = self.db.query(Vendor).filter(Vendor.id == comm.vendor_id).first()
                 if vendor:
@@ -82,7 +76,6 @@ class CommunicationService:
         self,
         vendor_id: UUID
     ) -> List[CommunicationLog]:
-        """Get all communications with a specific vendor"""
         return (
             self.db.query(CommunicationLog)
             .filter(CommunicationLog.vendor_id == vendor_id)
@@ -96,10 +89,6 @@ class CommunicationService:
         vendor_id: UUID,
         limit: int = 10
     ) -> str:
-        """
-        Get formatted conversation history for AI context.
-        Returns a string with all messages formatted for readability.
-        """
         communications = (
             self.db.query(CommunicationLog)
             .filter(

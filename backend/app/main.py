@@ -9,12 +9,10 @@ from app.routes import work_orders, vendors, quotes, communications, voice, webh
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
     print("🚀 Initializing Tavi Backend...")
     init_db()
     print("✅ Database initialized")
     yield
-    # Shutdown
     print("👋 Shutting down Tavi Backend...")
 
 
@@ -25,7 +23,6 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
@@ -34,7 +31,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
 app.include_router(work_orders.router, prefix="/api/work-orders", tags=["Work Orders"])
 app.include_router(vendors.router, prefix="/api/vendors", tags=["Vendors"])
 app.include_router(quotes.router, prefix="/api/quotes", tags=["Quotes"])

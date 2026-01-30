@@ -33,10 +33,9 @@ export default function VendorConversationSimulator({
   const [generatedTranscript, setGeneratedTranscript] = useState<string>('')
   const [isCallGenerated, setIsCallGenerated] = useState(false)
 
-  // Show initial Tavi outreach message when channel changes or component mounts
   useEffect(() => {
     generateInitialTaviMessage(activeChannel)
-    setIsCallGenerated(false) // Reset call state when switching channels
+    setIsCallGenerated(false)
   }, [activeChannel, vendorName])
 
   const generateInitialTaviMessage = (channel: 'email' | 'sms' | 'phone') => {
@@ -154,13 +153,11 @@ Click "Generate Call Transcript" below to see the full conversation!`
         return
       }
       
-      // Generate message
       await new Promise(resolve => setTimeout(resolve, 800))
       const generatedMessage = generateRealisticVendorResponse(activeChannel)
       
       console.log('Generated message:', generatedMessage)
       
-      // Update state
       setMessage(generatedMessage)
       setIsGenerating(false)
       
@@ -307,7 +304,6 @@ ${vendorName}`
     const hasPrice = /\$?\d+/.test(vendorMessage)
     const hasAvailability = /\d+\s*(day|days|tomorrow|week)|available|start/i.test(vendorMessage)
 
-    // If has both price and availability, conversation is complete
     if (hasPrice && hasAvailability) {
       if (channel === 'sms') {
         return "Perfect! We've received everything we need. We'll review all quotes and contact you within 24 hours if selected. Thank you!"
@@ -315,21 +311,18 @@ ${vendorName}`
       return "Excellent! Thank you for providing all the details we need.\n\n✅ Quote received: Price and availability confirmed.\n\nWe'll review all vendor proposals and get back to you within 24 hours if you're selected for this job.\n\nBest regards,\nTavi Team"
     }
 
-    // Need availability
     if (hasPrice && !hasAvailability) {
       return channel === 'sms' 
         ? "Thanks for the quote! When can you start this work?"
         : "Thank you for the quote! That pricing looks good. Could you please let me know your availability to start the work and estimated completion time?"
     }
 
-    // Need price
     if (!hasPrice && hasAvailability) {
       return channel === 'sms'
         ? "Great! What's your price quote for this job?"
         : "Excellent, that timeframe works for us! Could you provide your price quote for the complete work including materials and labor?"
     }
 
-    // Need both
     return channel === 'sms'
       ? "Thanks! Please provide your price quote and availability."
       : "Thank you for your interest! To proceed, we need:\n1. Your price quote for this work\n2. Your availability to start\n\nLooking forward to your response!"
@@ -407,7 +400,6 @@ ${vendorName}`
                   )
                 }
 
-                // Regular message bubbles for SMS/Email
                 return (
                   <div
                     key={idx}
@@ -510,7 +502,6 @@ ${vendorName}`
             )}
           </div>
         ) : (
-          // SMS/Email channels
           <>
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 mb-2">
               <p className="text-xs text-blue-900 font-medium">

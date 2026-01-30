@@ -24,10 +24,8 @@ async def voice_callback(
     """
     Twilio Voice webhook - generates TwiML for AI voice interaction
     """
-    # Get form data from Twilio
     form_data = await request.form()
     
-    # Get quote and work order details
     quote = db.query(Quote).filter(Quote.id == quote_id).first()
     if not quote:
         return Response(content=generate_error_twiml(), media_type="application/xml")
@@ -35,7 +33,6 @@ async def voice_callback(
     work_order = quote.work_order
     vendor = quote.vendor
     
-    # Generate AI voice script
     ai_service = AIAgentService()
     work_order_data = {
         "trade_type": work_order.trade_type.value,
@@ -51,7 +48,6 @@ async def voice_callback(
         "phone"
     )
     
-    # Generate TwiML response with AI speech and recording
     twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Say voice="alice" language="en-US">{call_script}</Say>
@@ -90,7 +86,6 @@ async def voice_transcript_callback(
     work_order = quote.work_order
     vendor = quote.vendor
     
-    # Save transcript to communication log
     comm_service = CommunicationService(db)
     
     transcript_message = f"""📞 CALL TRANSCRIPT
@@ -124,12 +119,10 @@ Status: {TranscriptionStatus}
         }
     )
     
-    # Parse vendor response with AI
     if TranscriptionText:
         ai_service = AIAgentService()
         parsed_response = await ai_service.parse_vendor_response(TranscriptionText)
         
-        # Update quote if we got pricing info
         if parsed_response.get('price'):
             from app.services.quote_service import QuoteService
             quote_service = QuoteService(db)
@@ -159,7 +152,6 @@ async def voice_status_callback(
     if not quote:
         return {"error": "Quote not found"}
     
-    # Update communication log with call status
     comm_service = CommunicationService(db)
     
     status_message = f"""📞 CALL STATUS UPDATE

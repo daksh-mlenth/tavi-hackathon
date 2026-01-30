@@ -51,7 +51,6 @@ export default function QuoteComparisonPage() {
     setConfirmationModalOpen(true)
   }
 
-  // Show all quotes with prices (including accepted/received quotes)
   const receivedQuotes = quotes.filter(q => q.price)
 
   if (loading) {

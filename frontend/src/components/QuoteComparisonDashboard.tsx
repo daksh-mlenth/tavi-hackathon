@@ -17,10 +17,8 @@ export default function QuoteComparisonDashboard({
   onSelectVendor,
   isVendorSelected = false
 }: QuoteComparisonDashboardProps) {
-  // Show all quotes with prices (including accepted/received/dispatched)
   const receivedQuotes = quotes.filter(q => q.price)
 
-  // Calculate statistics
   const stats = useMemo(() => {
     if (receivedQuotes.length === 0) return null
 
@@ -36,14 +34,12 @@ export default function QuoteComparisonDashboard({
     return null
   }
 
-  // Get best value using composite score (considers price + quality + availability)
   const bestValue = receivedQuotes.length > 0 ? receivedQuotes.reduce((best, current) => {
     const bestComposite = best.composite_score || 0
     const currentComposite = current.composite_score || 0
     return currentComposite > bestComposite ? current : best
   }) : null
 
-  // Get highest rated
   const highestRated = receivedQuotes.length > 0 ? receivedQuotes.reduce((best, current) => {
     const currentScore = (current as any).vendor?.composite_score || 0
     const bestScore = (best as any).vendor?.composite_score || 0

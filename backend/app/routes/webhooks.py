@@ -33,14 +33,12 @@ async def handle_inbound_sms(
     Twilio webhook for inbound SMS messages from vendors
     """
     print(f"📱 Inbound SMS from {From}: {Body}")
-    
-    # Find vendor by phone number
+
     vendor = db.query(Vendor).filter(Vendor.phone == From).first()
     if not vendor:
         print(f"⚠️  Unknown vendor phone: {From}")
         return {"status": "ignored", "reason": "unknown vendor"}
     
-    # Find active quotes for this vendor
     active_quotes = (
         db.query(Quote)
         .filter(
@@ -55,11 +53,9 @@ async def handle_inbound_sms(
         print(f"⚠️  No active quotes for vendor {vendor.business_name}")
         return {"status": "ignored", "reason": "no active quotes"}
     
-    # Use the most recent quote
     quote = active_quotes[0]
     work_order = quote.work_order
     
-    # Log inbound communication
     comm_service = CommunicationService(db)
     comm_service.log_communication(
         work_order_id=work_order.id,
@@ -71,7 +67,6 @@ async def handle_inbound_sms(
         metadata={"message_sid": MessageSid, "from_number": From}
     )
     
-    # Process with AI in background
     background_tasks.add_task(
         process_vendor_sms_response,
         db, quote.id, vendor.id, Body
@@ -89,7 +84,6 @@ async def handle_inbound_email(
     """
     SendGrid webhook for inbound email replies from vendors
     """
-    # SendGrid sends email data as JSON
     data = await request.json()
     
     from_email = data.get('from')
@@ -98,13 +92,11 @@ async def handle_inbound_email(
     
     print(f"📧 Inbound email from {from_email}")
     
-    # Find vendor by email
     vendor = db.query(Vendor).filter(Vendor.email == from_email).first()
     if not vendor:
         print(f"⚠️  Unknown vendor email: {from_email}")
         return {"status": "ignored", "reason": "unknown vendor"}
     
-    # Find active quotes for this vendor
     active_quotes = (
         db.query(Quote)
         .filter(
@@ -121,7 +113,6 @@ async def handle_inbound_email(
     quote = active_quotes[0]
     work_order = quote.work_order
     
-    # Log inbound communication
     comm_service = CommunicationService(db)
     comm_service.log_communication(
         work_order_id=work_order.id,
@@ -134,7 +125,6 @@ async def handle_inbound_email(
         metadata={"from_email": from_email}
     )
     
-    # Process with AI in background
     background_tasks.add_task(
         process_vendor_email_response,
         db, quote.id, vendor.id, body, subject
@@ -157,7 +147,6 @@ async def process_vendor_sms_response(db: Session, quote_id, vendor_id, message:
     work_order = quote.work_order
     vendor = quote.vendor
     
-    # Get conversation history and count turns
     comm_service = CommunicationService(db)
     all_comms = (
         db.query(CommunicationLog)
@@ -170,7 +159,6 @@ async def process_vendor_sms_response(db: Session, quote_id, vendor_id, message:
     )
     turn_count = len([c for c in all_comms if c.direction == "outbound"])
     
-    # If already 2+ exchanges, close conversation
     if turn_count >= 2:
         print(f"⚠️  Max SMS turns reached ({turn_count}), closing conversation")
         comm_service.log_communication(
@@ -186,10 +174,8 @@ async def process_vendor_sms_response(db: Session, quote_id, vendor_id, message:
     
     history = comm_service.get_conversation_history(work_order.id, vendor.id)
     
-    # Generate AI response
     ai_service = AIAgentService()
     
-    # Log inbound vendor message
     comm_service.log_communication(
         work_order_id=work_order.id,
         vendor_id=vendor.id,
@@ -200,7 +186,6 @@ async def process_vendor_sms_response(db: Session, quote_id, vendor_id, message:
         metadata={"turn": turn_count, "source": "vendor_reply"}
     )
     
-    # Parse vendor response with turn count
     parsed = await ai_service.parse_vendor_sms_response(
         message=message,
         conversation_history=history,
@@ -212,12 +197,10 @@ async def process_vendor_sms_response(db: Session, quote_id, vendor_id, message:
         }
     )
     
-    # Update quote with extracted info
     if parsed.get('extracted_info'):
         info = parsed['extracted_info']
         quote_service = QuoteService(db)
         
-        # Convert availability_days to datetime
         availability_date = None
         if info.get('availability_days'):
             days = int(info['availability_days'])
@@ -234,14 +217,11 @@ async def process_vendor_sms_response(db: Session, quote_id, vendor_id, message:
         
         db.commit()
     
-    # Check if conversation is complete
     if parsed.get('conversation_complete'):
         print(f"✅ SMS conversation complete (all info collected)")
         return
     
-    # If AI can handle it, send automated reply
     if not parsed.get('needs_human'):
-        # Log AI response (actual sending would happen here in production)
         comm_service.log_communication(
             work_order_id=work_order.id,
             vendor_id=vendor.id,
@@ -253,7 +233,6 @@ async def process_vendor_sms_response(db: Session, quote_id, vendor_id, message:
             metadata={"automated_reply": True, "turn": turn_count + 1}
         )
     else:
-        # Flag for human review
         comm_service.log_communication(
             work_order_id=work_order.id,
             vendor_id=vendor.id,
@@ -287,7 +266,6 @@ async def process_vendor_email_response(
     work_order = quote.work_order
     vendor = quote.vendor
     
-    # Get conversation history and count turns
     comm_service = CommunicationService(db)
     all_comms = (
         db.query(CommunicationLog)
@@ -300,7 +278,6 @@ async def process_vendor_email_response(
     )
     turn_count = len([c for c in all_comms if c.direction == "outbound"])
     
-    # If already 3+ exchanges, close conversation
     if turn_count >= 3:
         print(f"⚠️  Max email turns reached ({turn_count}), closing conversation")
         comm_service.log_communication(
@@ -317,7 +294,6 @@ async def process_vendor_email_response(
     
     history = comm_service.get_conversation_history(work_order.id, vendor.id)
     
-    # Log inbound vendor email
     comm_service.log_communication(
         work_order_id=work_order.id,
         vendor_id=vendor.id,
@@ -328,10 +304,8 @@ async def process_vendor_email_response(
         metadata={"turn": turn_count, "source": "vendor_reply", "subject": subject}
     )
     
-    # Generate AI response
     ai_service = AIAgentService()
     
-    # Parse vendor response with turn count
     parsed = await ai_service.parse_vendor_email_response(
         message=message,
         conversation_history=history,
@@ -344,12 +318,10 @@ async def process_vendor_email_response(
         }
     )
     
-    # Update quote with extracted info
     if parsed.get('extracted_info'):
         info = parsed['extracted_info']
         quote_service = QuoteService(db)
         
-        # Convert availability_days to datetime
         availability_date = None
         if info.get('availability_days'):
             days = int(info['availability_days'])
@@ -366,14 +338,11 @@ async def process_vendor_email_response(
         
         db.commit()
     
-    # Check if conversation is complete
     if parsed.get('conversation_complete'):
         print(f"✅ Email conversation complete (all info collected)")
         return
     
-    # If AI can handle it, send automated reply
     if not parsed.get('needs_human'):
-        # Log AI response (actual sending would happen here in production)
         comm_service.log_communication(
             work_order_id=work_order.id,
             vendor_id=vendor.id,
@@ -386,7 +355,6 @@ async def process_vendor_email_response(
             metadata={"automated_reply": True, "turn": turn_count + 1}
         )
     else:
-        # Flag for human review
         comm_service.log_communication(
             work_order_id=work_order.id,
             vendor_id=vendor.id,

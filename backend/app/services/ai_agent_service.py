@@ -27,18 +27,11 @@ from app.prompts import (
 
 
 class AIAgentService:
-    """Service for AI agent operations using OpenAI"""
-    
     def __init__(self):
         self.client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY) if settings.OPENAI_API_KEY else None
     
     async def parse_work_order_input(self, raw_input: str) -> Dict[str, Any]:
-        """
-        Parse natural language input into structured work order data.
-        Extracts: title, description, trade_type, location, urgency, preferred_date
-        """
         if not self.client:
-            # Fallback when no API key
             return self._fallback_parse(raw_input)
         
         try:
@@ -60,7 +53,6 @@ class AIAgentService:
             return self._fallback_parse(raw_input)
     
     def _fallback_parse(self, raw_input: str) -> Dict[str, Any]:
-        """Simple fallback parsing when AI is unavailable"""
         return {
             "title": "Work Order from Natural Language",
             "description": raw_input,
@@ -79,14 +71,9 @@ class AIAgentService:
         vendor_name: str,
         channel: str
     ) -> str:
-        """
-        Generate a professional message to contact a vendor about a job.
-        channel: 'email', 'sms', or 'phone'
-        """
         if not self.client:
             return self._fallback_contact_message(work_order_data, vendor_name, channel)
         
-        # Select appropriate prompt based on channel
         if channel == "email":
             system_prompt = VENDOR_CONTACT_EMAIL_SYSTEM_PROMPT
             user_prompt = VENDOR_CONTACT_EMAIL_USER_PROMPT(
@@ -109,7 +96,7 @@ class AIAgentService:
                 preferred_date=work_order_data.get('preferred_date', 'flexible')
             )
             max_tokens = AI_MAX_TOKENS_SHORT
-        else:  # phone
+        else:
             system_prompt = VENDOR_CONTACT_PHONE_SYSTEM_PROMPT
             user_prompt = VENDOR_CONTACT_PHONE_USER_PROMPT(
                 vendor_name=vendor_name,
@@ -144,7 +131,6 @@ class AIAgentService:
         vendor_name: str,
         channel: str
     ) -> str:
-        """Fallback message template"""
         trade = work_order_data.get('trade_type', 'service')
         location = work_order_data.get('location_address', 'local area')
         
@@ -164,14 +150,10 @@ Could you provide a quote and your availability? Please reply with your rate and
 
 Best regards,
 Tavi Team"""
-        else:  # phone
+        else:
             return f"Hello, this is Tavi calling about a {trade} job opportunity at {location}. Are you available to provide a quote?"
     
     async def parse_vendor_response(self, response_text: str) -> Dict[str, Any]:
-        """
-        Parse vendor's response to extract quote information.
-        Returns: {price, availability_date, notes}
-        """
         if not self.client:
             return {"price": None, "availability_date": None, "notes": response_text}
 
@@ -198,10 +180,6 @@ Tavi Team"""
         conversation_history: str,
         work_order_data: dict
     ) -> Dict[str, Any]:
-        """
-        Parse vendor email reply and generate AI response or flag for human.
-        Enforces max 3 email exchanges.
-        """
         from app.prompts.vendor_communication_prompts import VENDOR_EMAIL_REPLY_PROMPT
         
         if not self.client:
@@ -230,7 +208,6 @@ Tavi Team"""
             
             result = json.loads(response.choices[0].message.content)
             
-            # Also extract quote info
             if not result.get('needs_human'):
                 quote_info = await self.parse_vendor_response(message)
                 result['extracted_info'] = quote_info
@@ -250,9 +227,6 @@ Tavi Team"""
         transcript: str,
         work_order_data: dict
     ) -> Dict[str, Any]:
-        """
-        Parse vendor phone call transcript and extract quote information.
-        """
         from app.prompts.vendor_communication_prompts import VENDOR_PHONE_RESPONSE_PARSE_PROMPT
         
         if not self.client:
@@ -276,7 +250,6 @@ Tavi Team"""
             
             content = response.choices[0].message.content.strip()
             
-            # Parse JSON response
             import json
             parsed = json.loads(content)
             return parsed
@@ -291,10 +264,6 @@ Tavi Team"""
         conversation_history: str,
         work_order_data: dict
     ) -> Dict[str, Any]:
-        """
-        Parse vendor SMS reply and generate AI response or flag for human.
-        Enforces max 2 SMS exchanges.
-        """
         from app.prompts.vendor_communication_prompts import VENDOR_SMS_REPLY_PROMPT
         
         if not self.client:
@@ -331,6 +300,7 @@ Tavi Team"""
                 "response": "Thanks! We'll review and get back to you."
             }
     
+    # IDEA: This is not used anywhere BUT I plan to have good negotiation model pipline that can help to sign best rated vendor on our desired pricing.
     async def generate_negotiation_message(
         self,
         vendor_price: float,
@@ -339,13 +309,12 @@ Tavi Team"""
         channel: str,
         work_order_data: dict
     ) -> str:
-        """
-        Generate a negotiation message to get better terms
-        """
         from app.prompts.vendor_communication_prompts import NEGOTIATION_PROMPT
         
+        currency_symbol = work_order_data.get('currency', '$')
+        
         if not self.client:
-            return f"Thank you for your quote of ${vendor_price}. Can you match our budget of ${customer_budget}?"
+            return f"Thank you for your quote of {currency_symbol}{vendor_price}. Can you match our budget of {currency_symbol}{customer_budget}?"
         
         try:
             prompt = NEGOTIATION_PROMPT.format(

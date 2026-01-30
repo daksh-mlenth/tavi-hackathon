@@ -15,7 +15,6 @@ router = APIRouter()
 
 
 class VendorResponseCreate(BaseModel):
-    """Schema for simulating vendor response"""
     response_text: str
 
 
@@ -24,7 +23,6 @@ def list_quotes_for_work_order(
     work_order_id: UUID,
     db: Session = Depends(get_db)
 ):
-    """Get all quotes for a specific work order"""
     service = QuoteService(db)
     quotes = service.get_quotes_for_work_order(work_order_id)
     return QuoteList(quotes=quotes, total=len(quotes))
@@ -35,7 +33,6 @@ def get_quote(
     quote_id: UUID,
     db: Session = Depends(get_db)
 ):
-    """Get a specific quote by ID"""
     service = QuoteService(db)
     quote = service.get_quote(quote_id)
     
@@ -51,25 +48,15 @@ async def simulate_vendor_response(
     response_data: VendorResponseCreate,
     db: Session = Depends(get_db)
 ):
-    """
-    Simulate a vendor response to a quote request.
-    This endpoint is for demo purposes to show how the system handles vendor responses.
-    
-    Example response text:
-    "Yes, I can do it for $350. Available tomorrow afternoon."
-    """
     service = QuoteService(db)
     ai_service = AIAgentService()
     
-    # Check if quote exists
     quote = service.get_quote(quote_id)
     if not quote:
         raise HTTPException(status_code=404, detail="Quote not found")
     
-    # Parse vendor response using AI
     parsed_response = await ai_service.parse_vendor_response(response_data.response_text)
     
-    # Convert availability_date string to datetime if present
     availability_date = None
     if parsed_response.get('availability_date'):
         try:
@@ -77,7 +64,6 @@ async def simulate_vendor_response(
         except (ValueError, TypeError):
             availability_date = None
     
-    # Update quote with parsed data
     updated_quote = service.update_quote_with_response(
         quote_id=quote_id,
         price=parsed_response.get('price'),
@@ -121,10 +107,8 @@ async def request_quote(
     if not quote:
         raise HTTPException(status_code=404, detail="Quote not found")
     
-    # Update quote status to requested
     quote.status = QuoteStatus.REQUESTED
     
-    # Update work order status to contacting_vendors if not already
     work_order = db.query(WorkOrder).filter(WorkOrder.id == quote.work_order_id).first()
     if work_order and work_order.status == WorkOrderStatus.AWAITING_APPROVAL:
         work_order.status = WorkOrderStatus.CONTACTING_VENDORS
@@ -132,7 +116,6 @@ async def request_quote(
     db.commit()
     db.refresh(quote)
     
-    # Actually contact the vendor (in demo mode - sends to test email/phone)
     contact_service = VendorContactService(db)
     await contact_service.contact_vendor_for_quote(str(quote_id))
     
@@ -151,10 +134,6 @@ async def request_multiple_quotes(
     quote_ids: List[UUID],
     db: Session = Depends(get_db)
 ):
-    """
-    Request quotes from multiple vendors at once.
-    Sends multi-modal communications to all selected vendors.
-    """
     from app.models.quote import Quote, QuoteStatus
     from app.models.work_order import WorkOrder, WorkOrderStatus
     from app.services.vendor_contact_service import VendorContactService
@@ -166,11 +145,9 @@ async def request_multiple_quotes(
     if not quotes:
         raise HTTPException(status_code=404, detail="No quotes found")
     
-    # Update all quote statuses to requested
     for quote in quotes:
         quote.status = QuoteStatus.REQUESTED
     
-    # Update work order status
     work_order_id = quotes[0].work_order_id
     work_order = db.query(WorkOrder).filter(WorkOrder.id == work_order_id).first()
     if work_order and work_order.status == WorkOrderStatus.AWAITING_APPROVAL:
@@ -178,7 +155,6 @@ async def request_multiple_quotes(
     
     db.commit()
     
-    # Contact all vendors in parallel (demo mode)
     contact_service = VendorContactService(db)
     tasks = [contact_service.contact_vendor_for_quote(str(q.id)) for q in quotes]
     await asyncio.gather(*tasks, return_exceptions=True)
@@ -199,7 +175,6 @@ def accept_quote(
     quote_id: UUID,
     db: Session = Depends(get_db)
 ):
-    """Accept a quote and dispatch the vendor"""
     service = QuoteService(db)
     quote = service.accept_quote(quote_id)
     

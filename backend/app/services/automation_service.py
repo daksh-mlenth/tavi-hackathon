@@ -19,9 +19,6 @@ from app.routes.webhooks import process_vendor_sms_response, process_vendor_emai
 from app.routes.confirmations import send_facility_manager_confirmation, send_vendor_dispatch_confirmation
 
 class AutomationService:
-    """Autonomous agent that handles entire work order lifecycle"""
-    
-    # Class-level dict to track running automations (prevents concurrent runs)
     _running_automations = {}
     _lock = asyncio.Lock()
     
@@ -35,13 +32,8 @@ class AutomationService:
         self, 
         work_order_id: UUID
     ) -> AsyncGenerator[Dict, None]:
-        """
-        Autonomous workflow that handles everything from vendor discovery to dispatch
-        Yields progress updates via Server-Sent Events
-        """
         work_order_id_str = str(work_order_id)
         
-        # Check if automation already running for this work order
         async with self._lock:
             if work_order_id_str in self._running_automations:
                 yield {
@@ -52,11 +44,9 @@ class AutomationService:
                 }
                 return
             
-            # Mark as running
             self._running_automations[work_order_id_str] = True
         
         try:
-            # Check if work order is already completed or dispatched
             work_order = self.work_order_service.get_work_order(work_order_id)
             if work_order.status in [WorkOrderStatus.DISPATCHED, WorkOrderStatus.COMPLETED]:
                 yield {
@@ -67,7 +57,6 @@ class AutomationService:
                 }
                 return
             
-            # Step 1: Discover Vendors
             yield {
                 "step": 1,
                 "status": "in_progress",
@@ -85,7 +74,6 @@ class AutomationService:
                 "timestamp": datetime.utcnow().isoformat()
             }
             
-            # Step 2: Request Quotes (Parallel)
             yield {
                 "step": 2,
                 "status": "in_progress",
@@ -103,7 +91,6 @@ class AutomationService:
                 "timestamp": datetime.utcnow().isoformat()
             }
             
-            # Step 3: Simulate Vendor Responses (Parallel)
             yield {
                 "step": 3,
                 "status": "in_progress",
@@ -114,7 +101,6 @@ class AutomationService:
             async for progress in self._simulate_all_responses_parallel(work_order_id):
                 yield progress
             
-            # Step 4: Evaluate and Rank All Vendors
             yield {
                 "step": 4,
                 "status": "in_progress",
@@ -141,7 +127,6 @@ class AutomationService:
                 "timestamp": datetime.utcnow().isoformat()
             }
             
-            # Step 5: Iteratively Try Vendors Until One Confirms
             yield {
                 "step": 5,
                 "status": "in_progress",
@@ -149,13 +134,17 @@ class AutomationService:
                 "timestamp": datetime.utcnow().isoformat()
             }
             
-            # Try each vendor in order until one confirms
+            work_order = self.work_order_service.get_work_order(work_order_id)
+            from app.constants import get_currency_info
+            currency_info = get_currency_info(work_order.location_country or "United States")
+            currency_symbol = currency_info['symbol']
+            
             confirmed = False
             for attempt, vendor in enumerate(ranked_vendors, 1):
                 yield {
                     "step": 5,
                     "status": "in_progress",
-                    "message": f"📋 Attempt #{attempt}: {vendor['name']} (${vendor['price']}, {vendor['rating']}/10)...",
+                    "message": f"📋 Attempt #{attempt}: {vendor['name']} ({currency_symbol}{vendor['price']}, {vendor['rating']}/10)...",
                     "timestamp": datetime.utcnow().isoformat()
                 }
                 
@@ -182,9 +171,8 @@ class AutomationService:
                         "message": f"⚠️ {result['reason']} - Trying next vendor...",
                         "timestamp": datetime.utcnow().isoformat()
                     }
-                    await asyncio.sleep(1)  # Brief pause between attempts
+                    await asyncio.sleep(1)
             
-            # If no vendors confirmed
             if not confirmed:
                 yield {
                     "step": 5,
@@ -202,37 +190,24 @@ class AutomationService:
                 "timestamp": datetime.utcnow().isoformat()
             }
         finally:
-            # Always clean up the lock when done
             async with self._lock:
                 self._running_automations.pop(work_order_id_str, None)
     
     async def _discover_vendors(self, work_order_id: UUID) -> int:
-        """Step 1: Discover vendors - check if already discovered, otherwise discover"""
-        # Check if vendors already discovered
         existing_quotes = self.db.query(Quote).filter(Quote.work_order_id == work_order_id).all()
         
         if len(existing_quotes) == 0:
-            # No vendors yet, trigger discovery
             self.work_order_service.start_vendor_discovery_workflow(work_order_id)
-            
-            # Brief delay for demo visualization (shows "discovering..." on UI)
             await asyncio.sleep(2)
-            
-            # Count discovered vendors
             quotes = self.db.query(Quote).filter(Quote.work_order_id == work_order_id).all()
             return len(quotes)
         else:
-            # Vendors already discovered, skip discovery
             return len(existing_quotes)
     
     async def _request_all_quotes_parallel(self, work_order_id: UUID) -> int:
-        """Step 2: Request quotes from ALL vendors in parallel"""
-        
-        # Get all quotes for this work order
         quotes = self.db.query(Quote).filter(Quote.work_order_id == work_order_id).all()
         quote_ids = [str(quote.id) for quote in quotes]
         
-        # Request all quotes in parallel (using existing endpoint logic)
         tasks = []
         for quote_id in quote_ids:
             task = self._request_single_quote(UUID(quote_id))
@@ -243,19 +218,14 @@ class AutomationService:
         return len(quote_ids)
     
     async def _request_single_quote(self, quote_id: UUID):
-        """Helper to request a single quote (reuses existing quote service logic)"""
-
         quote = self.db.query(Quote).filter(Quote.id == quote_id).first()
         if not quote:
             return
         
-        # Update quote status (this also logs outbound communication in the quote service)
         quote.status = 'requested'
         self.db.commit()
     
     async def _simulate_all_responses_parallel(self, work_order_id: UUID) -> AsyncGenerator[Dict, None]:
-        """Step 3: Simulate vendor responses in parallel with progress updates"""
-        
         quotes = self.db.query(Quote).filter(
             Quote.work_order_id == work_order_id,
             Quote.status == 'requested'
@@ -263,14 +233,11 @@ class AutomationService:
         
         total = len(quotes)
         completed = 0
-        
-        # Create tasks for parallel simulation
         tasks = []
         for quote in quotes:
             task = self._simulate_single_vendor_response(quote.id)
             tasks.append(task)
         
-        # Execute in parallel and track progress
         for coro in asyncio.as_completed(tasks):
             await coro
             completed += 1
@@ -298,33 +265,31 @@ class AutomationService:
         }
     
     async def _simulate_single_vendor_response(self, quote_id: UUID):
-        """Helper to simulate a single vendor response (reuses existing webhook processing)"""
         quote = self.db.query(Quote).filter(Quote.id == quote_id).first()
         if not quote:
             return
         
-        # Brief delay for realistic demo pacing (simulates API response time)
         await asyncio.sleep(random.uniform(0.5, 2.0))
         
-        # Generate quote details
+        work_order = quote.work_order
+        from app.constants import get_currency_info
+        currency_info = get_currency_info(work_order.location_country or "United States")
+        currency_symbol = currency_info['symbol']
+        
         base_price = random.randint(150, 500)
         days_available = random.randint(1, 7)
         duration_hours = random.randint(2, 8)
         
-        # Generate inbound vendor response message
         vendor_responses = [
-            f"Hi! I can help with this. My quote is ${base_price}. I'm available to start in {days_available} days and estimate {duration_hours} hours to complete. Let me know!",
-            f"Hello, thank you for reaching out. Price: ${base_price}, available in {days_available} days, completion time: ~{duration_hours} hours. Ready to start!",
-            f"Yes, I'm interested! ${base_price} total. Can start {days_available} days from now, should take about {duration_hours} hours. Please confirm.",
-            f"I'd be happy to help! Quote: ${base_price}. Available starting in {days_available} days. Estimated {duration_hours} hour job. Thanks!",
+            f"Hi! I can help with this. My quote is {currency_symbol}{base_price}. I'm available to start in {days_available} days and estimate {duration_hours} hours to complete. Let me know!",
+            f"Hello, thank you for reaching out. Price: {currency_symbol}{base_price}, available in {days_available} days, completion time: ~{duration_hours} hours. Ready to start!",
+            f"Yes, I'm interested! {currency_symbol}{base_price} total. Can start {days_available} days from now, should take about {duration_hours} hours. Please confirm.",
+            f"I'd be happy to help! Quote: {currency_symbol}{base_price}. Available starting in {days_available} days. Estimated {duration_hours} hour job. Thanks!",
         ]
         
         inbound_message = random.choice(vendor_responses)
-        
-        # Determine channel (alternate between SMS/Email for variety)
         use_sms = quote_id.int % 2 == 0
         
-        # Reuse existing webhook processing functions (they handle all logging and AI parsing)
         if use_sms:
             await process_vendor_sms_response(
                 db=self.db,
@@ -342,16 +307,12 @@ class AutomationService:
             )
     
     async def _evaluate_and_select_best(self, work_order_id: UUID) -> Dict:
-        """Step 4: Evaluate all quotes and select the best vendor"""
         quotes = self.db.query(Quote).filter(
             Quote.work_order_id == work_order_id,
             Quote.price.isnot(None)
         ).all()
         
-        # Use composite score to find best vendor
         best_quote = max(quotes, key=lambda q: q.composite_score or 0)
-        
-        # Brief delay for demo visualization (shows "evaluating..." on UI)
         await asyncio.sleep(1)
         
         return {
@@ -364,12 +325,9 @@ class AutomationService:
         }
     
     async def _auto_confirm_and_dispatch(self, work_order_id: UUID, quote_id: UUID):
-        """Step 5: Auto-confirm with facility manager and vendor (reuses existing confirmation logic)"""
-        
         work_order = self.work_order_service.get_work_order(work_order_id)
         quote = self.db.query(Quote).filter(Quote.id == quote_id).first()
         
-        # Set facility manager if not set
         if not work_order.facility_manager_email:
             work_order.facility_manager_email = "manager@tavi.io"
             work_order.facility_manager_name = "Albert"
@@ -380,18 +338,12 @@ class AutomationService:
         quote.status = 'accepted'
         self.db.commit()
         
-        # === FACILITY MANAGER CONFIRMATION ===
-        # Reuse existing confirmation function (handles all logging)
         await send_facility_manager_confirmation(self.db, work_order_id, quote.vendor_id)
-        
-        # Brief delay for demo visualization
         await asyncio.sleep(1)
         
-        # Simulate facility manager approval (reuse existing logic)
         work_order.facility_confirmed = datetime.utcnow()
         work_order.status = WorkOrderStatus.AWAITING_VENDOR_DISPATCH
         
-        # Log facility manager approval response
         from app.models.communication_log import CommunicationChannel
         self.comm_service.log_communication(
             work_order_id=work_order.id,
@@ -410,22 +362,14 @@ class AutomationService:
         )
         
         self.db.commit()
-        
-        # === VENDOR DISPATCH CONFIRMATION ===
-        # Brief delay for demo visualization
         await asyncio.sleep(1)
         
-        # Reuse existing dispatch confirmation function (handles all logging)
         await send_vendor_dispatch_confirmation(self.db, work_order_id, quote.vendor_id)
-        
-        # Brief delay for demo visualization
         await asyncio.sleep(1)
         
-        # Simulate vendor confirmation
         work_order.vendor_dispatch_confirmed = datetime.utcnow()
         work_order.status = WorkOrderStatus.DISPATCHED
         
-        # Log vendor confirmation response
         self.comm_service.log_communication(
             work_order_id=work_order.id,
             vendor_id=quote.vendor_id,
@@ -443,16 +387,13 @@ class AutomationService:
         self.db.commit()
     
     async def _evaluate_and_rank_all(self, work_order_id: UUID) -> List[Dict]:
-        """Evaluate all quotes and return vendors ranked by composite score (best first)"""
         quotes = self.db.query(Quote).filter(
             Quote.work_order_id == work_order_id,
             Quote.price.isnot(None)
         ).all()
         
-        # Sort by composite score (best first)
         sorted_quotes = sorted(quotes, key=lambda q: q.composite_score or 0, reverse=True)
-        
-        await asyncio.sleep(1)  # Demo visualization
+        await asyncio.sleep(1)
         
         return [
             {
@@ -472,33 +413,32 @@ class AutomationService:
         vendor: Dict, 
         attempt_number: int
     ) -> Dict:
-        """Try to confirm with facility manager and vendor. Returns success/failure with reason."""
-        
         work_order = self.work_order_service.get_work_order(work_order_id)
         quote_id = UUID(vendor['quote_id'])
         quote = self.db.query(Quote).filter(Quote.id == quote_id).first()
         
-        # Set facility manager if not set
         if not work_order.facility_manager_email:
             work_order.facility_manager_email = "manager@tavi.io"
             work_order.facility_manager_name = "Albert"
         
-        # Update work order with selected vendor
+        # Update work order with selected vendor (but DON'T mark quote as accepted yet)
         work_order.selected_vendor_id = quote.vendor_id
         work_order.status = WorkOrderStatus.VENDOR_SELECTED
-        quote.status = 'accepted'
+        # ✅ REMOVED: quote.status = 'accepted' - only set after BOTH confirmations
         self.db.commit()
         
-        # === FACILITY MANAGER CONFIRMATION ===
         await send_facility_manager_confirmation(self.db, work_order_id, quote.vendor_id)
         await asyncio.sleep(0.5)
         
-        # Simulate facility manager response (80% approval rate, decreases with each attempt)
         approval_chance = 0.8 - (attempt_number - 1) * 0.15
         facility_approves = random.random() < approval_chance
         
         if not facility_approves:
-            # Log rejection
+            # ✅ Reset work order status and selected vendor
+            work_order.selected_vendor_id = None
+            work_order.status = WorkOrderStatus.CONTACTING_VENDORS
+            self.db.commit()
+            
             comm_service = CommunicationService(self.db)
             comm_service.log_communication(
                 work_order_id=work_order.id,
@@ -514,7 +454,6 @@ class AutomationService:
                 "reason": f"Facility manager declined {vendor['name']}"
             }
         
-        # Log facility approval
         work_order.facility_confirmed = datetime.utcnow()
         work_order.status = WorkOrderStatus.AWAITING_VENDOR_DISPATCH
         
@@ -529,18 +468,20 @@ class AutomationService:
             metadata={"source": "facility_manager", "decision": "approved"}
         )
         self.db.commit()
-        
         await asyncio.sleep(0.5)
         
-        # === VENDOR DISPATCH CONFIRMATION ===
         await send_vendor_dispatch_confirmation(self.db, work_order_id, quote.vendor_id)
         await asyncio.sleep(0.5)
         
-        # Simulate vendor response (85% confirmation rate)
         vendor_confirms = random.random() < 0.85
         
         if not vendor_confirms:
-            # Log vendor declining
+            # ✅ Reset work order status and selected vendor
+            work_order.selected_vendor_id = None
+            work_order.status = WorkOrderStatus.CONTACTING_VENDORS
+            work_order.facility_confirmed = None  # Reset facility confirmation too
+            self.db.commit()
+            
             comm_service.log_communication(
                 work_order_id=work_order.id,
                 vendor_id=quote.vendor_id,
@@ -555,7 +496,8 @@ class AutomationService:
                 "reason": f"{vendor['name']} is no longer available"
             }
         
-        # Log vendor confirmation
+        # ✅ BOTH confirmations received - NOW mark as accepted and dispatched
+        quote.status = 'accepted'
         work_order.vendor_dispatch_confirmed = datetime.utcnow()
         work_order.status = WorkOrderStatus.DISPATCHED
         

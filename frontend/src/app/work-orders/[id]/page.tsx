@@ -37,7 +37,6 @@ export default function WorkOrderDetail() {
   useEffect(() => {
     if (workOrderId) {
       loadWorkOrderData()
-      // Only poll if automation is NOT running (to prevent interfering with SSE)
       const interval = setInterval(() => {
         if (!automationRunning) {
           loadWorkOrderData()
@@ -130,7 +129,6 @@ export default function WorkOrderDetail() {
 
   const handleSimulateTop5Vendors = async () => {
     try {
-      // Get top 5 pending quotes
       const top5Quotes = quotes
         .filter(q => q.status === 'pending')
         .slice(0, 5)
@@ -140,7 +138,6 @@ export default function WorkOrderDetail() {
         return
       }
 
-      // Simulate each one
       for (const quote of top5Quotes) {
         const vendorMessage = `Hi, I can do this for $${Math.floor(Math.random() * 300) + 200}. Available in ${Math.floor(Math.random() * 5) + 1} days.`
         await api.simulateVendorReply(quote.id, vendorMessage, 'sms')
@@ -154,7 +151,6 @@ export default function WorkOrderDetail() {
   }
   
   const handleLetAIHandle = () => {
-    // Prevent multiple clicks
     if (showAutomation || automationRunning) {
       console.log('Automation already running, ignoring click')
       return
@@ -988,7 +984,6 @@ export default function WorkOrderDetail() {
                             {isExpanded ? (
                               <div>
                                 {comm.channel === 'phone' ? (
-                                  // Special formatting for call transcripts
                                   <div className="bg-gray-50 rounded p-3 border border-gray-200">
                                     <div className="flex items-center mb-2">
                                       <Phone className="h-4 w-4 mr-2 text-blue-600" />
