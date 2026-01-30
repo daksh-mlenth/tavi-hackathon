@@ -109,7 +109,7 @@ export const api = {
   },
 
   // Demo endpoints for testing bidirectional conversations
-  simulateVendorReply: async (quoteId: string, message: string, channel: 'email' | 'sms') => {
+  simulateVendorReply: async (quoteId: string, message: string, channel: 'email' | 'sms' | 'phone') => {
     const response = await apiClient.post('/api/demo/simulate-vendor-reply', {
       quote_id: quoteId,
       reply_message: message,
