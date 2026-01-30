@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 
 from app.config import settings
 from app.database import init_db
-from app.routes import work_orders, vendors, quotes, communications, voice, webhooks, demo, confirmations
+from app.routes import work_orders, vendors, quotes, communications, voice, webhooks, demo, confirmations, automation
 
 
 @asynccontextmanager
@@ -43,6 +43,7 @@ app.include_router(voice.router, prefix="/api/communications", tags=["Voice"])
 app.include_router(webhooks.router, prefix="/api/webhooks", tags=["Webhooks"])
 app.include_router(demo.router, prefix="/api/demo", tags=["Demo"])
 app.include_router(confirmations.router, prefix="/api/confirmations", tags=["Confirmations"])
+app.include_router(automation.router, prefix="/api/automation", tags=["Automation"])
 
 
 @app.get("/")

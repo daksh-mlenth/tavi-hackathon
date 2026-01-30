@@ -38,11 +38,13 @@ Latest vendor message:
 {vendor_message}
 
 CRITICAL RULES:
-1. If vendor gave price + availability → thank them and END conversation (needs_human: false, response: "Thank you! We'll review and contact you if selected.")
-2. If vendor asks about payment/legal/technical specifics → flag for human (needs_human: true)
+1. **PRIMARY RULE**: If vendor provided a specific price (dollar amount) AND any availability timeframe → ALWAYS set needs_human to FALSE and END conversation immediately with: "Thank you! We'll review and contact you if selected."
+2. If vendor asks complex legal/contract questions → flag for human (needs_human: true)
 3. If this is turn 3+ → END conversation and flag for human review
 4. Keep ALL replies under 100 words
 5. ONLY ask for missing critical info: price, availability, duration
+
+**IMPORTANT**: Simple confirmations like "let me know" or "please confirm" do NOT require human review if price and availability are already provided!
 
 Work Order: {description}
 Budget: {budget}
@@ -96,10 +98,12 @@ Latest:
 {vendor_message}
 
 RULES:
-1. If vendor gave price + availability → END: "Thanks! We'll review and contact you."
+1. **PRIMARY RULE**: If vendor gave ANY price (dollar amount) + ANY availability timeframe → ALWAYS set needs_human to FALSE and END with: "Thanks! We'll review and contact you."
 2. If turn 2+ → END conversation
 3. Max 160 chars per reply
 4. Only ask for missing: price, availability
+
+**CRITICAL**: If price and availability are present, DO NOT flag for human review even if vendor says "let me know" or "please confirm" - this is NORMAL and does NOT need human intervention!
 
 IMPORTANT - For availability, extract DAYS as a number:
 - "tomorrow" = 1

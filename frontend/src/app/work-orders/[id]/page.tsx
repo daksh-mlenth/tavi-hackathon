@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation'
 import { api } from '@/lib/api'
 import QuoteComparisonDashboard from '@/components/QuoteComparisonDashboard'
 import RequestQuoteModal from '@/components/RequestQuoteModal'
+import AutomationTimeline from '@/components/AutomationTimeline'
 import { 
   Building2, MapPin, Calendar, Loader2, Phone, Mail, MessageSquare,
   DollarSign, Star, Clock, CheckCircle, ArrowLeft, AlertTriangle,
@@ -30,14 +31,21 @@ export default function WorkOrderDetail() {
     quoteIds: string[]
     vendorNames: string[]
   }>({ isOpen: false, quoteIds: [], vendorNames: [] })
+  const [showAutomation, setShowAutomation] = useState(false)
+  const [automationRunning, setAutomationRunning] = useState(false)
 
   useEffect(() => {
     if (workOrderId) {
       loadWorkOrderData()
-      const interval = setInterval(loadWorkOrderData, 5000) // Poll every 5 seconds
+      // Only poll if automation is NOT running (to prevent interfering with SSE)
+      const interval = setInterval(() => {
+        if (!automationRunning) {
+          loadWorkOrderData()
+        }
+      }, 5000)
       return () => clearInterval(interval)
     }
-  }, [workOrderId])
+  }, [workOrderId, automationRunning])
 
   const loadWorkOrderData = async () => {
     try {
@@ -143,6 +151,28 @@ export default function WorkOrderDetail() {
     } catch (error) {
       toast.error('Failed to simulate responses')
     }
+  }
+  
+  const handleLetAIHandle = () => {
+    // Prevent multiple clicks
+    if (showAutomation || automationRunning) {
+      console.log('Automation already running, ignoring click')
+      return
+    }
+    setShowAutomation(true)
+    setAutomationRunning(true)
+  }
+  
+  const handleAutomationComplete = () => {
+    toast.success('🎉 AI successfully completed the workflow!')
+    setShowAutomation(false)
+    setAutomationRunning(false)
+    loadWorkOrderData()
+  }
+  
+  const handleAutomationError = (error: string) => {
+    toast.error(`Automation failed: ${error}`)
+    setAutomationRunning(false)
   }
 
   const getChannelIcon = (channel: string) => {
@@ -403,18 +433,19 @@ export default function WorkOrderDetail() {
                   <div>
                     <h3 className="font-semibold text-purple-900 flex items-center">
                       <Zap className="h-5 w-5 mr-2" />
-                      🎭 Demo Mode: Quick Test
+                      🤖 Tavi AI Agent: Autonomous Workflow
                     </h3>
                     <p className="text-sm text-purple-700 mt-1">
-                      Instantly simulate top 5 vendors responding with quotes
+                      AI handles everything end-to-end: vendor discovery, quote negotiation, and dispatch approval
                     </p>
                   </div>
                   <button
-                    onClick={handleSimulateTop5Vendors}
-                    className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg font-semibold transition-colors flex items-center"
+                    onClick={handleLetAIHandle}
+                    disabled={automationRunning}
+                    className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-6 py-2.5 rounded-lg font-semibold transition-all shadow-md hover:shadow-lg flex items-center text-sm disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                   >
-                    <Users className="h-4 w-4 mr-2" />
-                    Simulate Top 5 Vendors
+                    <Zap className="h-4 w-4 mr-2" />
+                    {automationRunning ? 'Running...' : 'Let Tavi Handle'}
                   </button>
                 </div>
               </div>
@@ -1023,6 +1054,27 @@ export default function WorkOrderDetail() {
         onUpdate={loadWorkOrderData}
         currencySymbol={workOrder?.currency_symbol || '$'}
       />
+
+      {/* Automation Timeline Modal */}
+      {showAutomation && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="max-w-6xl w-full my-8">
+            <div className="relative">
+              <button
+                onClick={() => setShowAutomation(false)}
+                className="absolute -top-4 -right-4 bg-white rounded-full p-2 shadow-lg hover:bg-gray-100 z-10"
+              >
+                <span className="text-2xl">×</span>
+              </button>
+              <AutomationTimeline
+                workOrderId={workOrderId}
+                onComplete={handleAutomationComplete}
+                onError={handleAutomationError}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
