@@ -21,7 +21,12 @@ class Settings(BaseSettings):
     GOOGLE_PLACES_API_KEY: Optional[str] = None
     YELP_API_KEY: Optional[str] = None
 
-    CORS_ORIGINS: list = ["http://localhost:3000", "http://frontend:3000"]
+    CORS_ORIGINS: list = [
+        "http://localhost:3000",
+        "http://frontend:3000",
+        "https://tavi-frontend.onrender.com",
+        "https://devoted-laughter-production-bc13.up.railway.app",
+    ]
 
     class Config:
         env_file = ".env"
