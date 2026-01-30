@@ -1,4 +1,25 @@
-FROM node:20-alpine
+# Development stage
+FROM node:20-alpine AS development
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm install
+
+# Copy application code
+COPY . .
+
+# Expose port
+EXPOSE 3000
+
+# Start development server
+CMD ["npm", "run", "dev"]
+
+# Production stage
+FROM node:20-alpine AS production
 
 WORKDIR /app
 
@@ -10,10 +31,6 @@ RUN npm ci
 
 # Copy application code
 COPY . .
-
-# Build argument for API URL (Railway will inject this)
-ARG NEXT_PUBLIC_API_URL
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
 # Build the application
 RUN npm run build
