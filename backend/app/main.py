@@ -4,17 +4,25 @@ from contextlib import asynccontextmanager
 
 from app.config import settings
 from app.database import init_db
-from app.routes import work_orders, vendors, quotes, communications, voice, webhooks, demo, confirmations
+from app.routes import (
+    work_orders,
+    vendors,
+    quotes,
+    communications,
+    voice,
+    webhooks,
+    demo,
+    confirmations,
+    automation,
+)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
     print("🚀 Initializing Tavi Backend...")
     init_db()
     print("✅ Database initialized")
     yield
-    # Shutdown
     print("👋 Shutting down Tavi Backend...")
 
 
@@ -22,10 +30,9 @@ app = FastAPI(
     title="Tavi API",
     description="AI-native managed marketplace for trade services",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
-# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
@@ -34,24 +41,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
 app.include_router(work_orders.router, prefix="/api/work-orders", tags=["Work Orders"])
 app.include_router(vendors.router, prefix="/api/vendors", tags=["Vendors"])
 app.include_router(quotes.router, prefix="/api/quotes", tags=["Quotes"])
-app.include_router(communications.router, prefix="/api/communications", tags=["Communications"])
+app.include_router(
+    communications.router, prefix="/api/communications", tags=["Communications"]
+)
 app.include_router(voice.router, prefix="/api/communications", tags=["Voice"])
 app.include_router(webhooks.router, prefix="/api/webhooks", tags=["Webhooks"])
 app.include_router(demo.router, prefix="/api/demo", tags=["Demo"])
-app.include_router(confirmations.router, prefix="/api/confirmations", tags=["Confirmations"])
+app.include_router(
+    confirmations.router, prefix="/api/confirmations", tags=["Confirmations"]
+)
+app.include_router(automation.router, prefix="/api/automation", tags=["Automation"])
 
 
 @app.get("/")
 async def root():
-    return {
-        "message": "Welcome to Tavi API",
-        "version": "1.0.0",
-        "status": "running"
-    }
+    return {"message": "Welcome to Tavi API", "version": "1.0.0", "status": "running"}
 
 
 @app.get("/health")

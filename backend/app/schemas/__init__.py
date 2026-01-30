@@ -2,7 +2,7 @@ from app.schemas.work_order import (
     WorkOrderCreate,
     WorkOrderUpdate,
     WorkOrderResponse,
-    WorkOrderList
+    WorkOrderList,
 )
 from app.schemas.vendor import VendorResponse, VendorList
 from app.schemas.quote import QuoteResponse, QuoteList

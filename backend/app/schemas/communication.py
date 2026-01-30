@@ -10,7 +10,7 @@ class CommunicationLogResponse(BaseModel):
     id: UUID
     work_order_id: UUID
     vendor_id: Optional[UUID] = None
-    vendor_name: Optional[str] = None  # Added vendor name
+    vendor_name: Optional[str] = None
     channel: CommunicationChannel
     direction: str
     subject: Optional[str] = None
@@ -18,6 +18,6 @@ class CommunicationLogResponse(BaseModel):
     response: Optional[str] = None
     sent_successfully: bool
     timestamp: datetime
-    
+
     class Config:
         from_attributes = True

@@ -18,7 +18,6 @@ export function WorkOrderForm({ onSuccess }: WorkOrderFormProps) {
   const [isListening, setIsListening] = useState(false)
 
   const handleVoiceInput = async () => {
-    // Check if browser supports speech recognition
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
     
     if (!SpeechRecognition) {
@@ -26,7 +25,6 @@ export function WorkOrderForm({ onSuccess }: WorkOrderFormProps) {
       return
     }
 
-    // Request microphone permission first
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true })
     } catch (err) {
@@ -56,7 +54,6 @@ export function WorkOrderForm({ onSuccess }: WorkOrderFormProps) {
       console.error('Speech recognition error:', event.error)
       setIsListening(false)
       
-      // Provide specific error messages
       if (event.error === 'network') {
         toast.error('Network error. Please check your internet connection.')
       } else if (event.error === 'not-allowed' || event.error === 'permission-denied') {

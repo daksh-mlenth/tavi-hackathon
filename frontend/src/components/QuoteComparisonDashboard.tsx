@@ -17,10 +17,8 @@ export default function QuoteComparisonDashboard({
   onSelectVendor,
   isVendorSelected = false
 }: QuoteComparisonDashboardProps) {
-  // Show all quotes with prices (including accepted/received/dispatched)
   const receivedQuotes = quotes.filter(q => q.price)
 
-  // Calculate statistics
   const stats = useMemo(() => {
     if (receivedQuotes.length === 0) return null
 
@@ -36,14 +34,12 @@ export default function QuoteComparisonDashboard({
     return null
   }
 
-  // Get best value using composite score (considers price + quality + availability)
   const bestValue = receivedQuotes.length > 0 ? receivedQuotes.reduce((best, current) => {
     const bestComposite = best.composite_score || 0
     const currentComposite = current.composite_score || 0
     return currentComposite > bestComposite ? current : best
   }) : null
 
-  // Get highest rated
   const highestRated = receivedQuotes.length > 0 ? receivedQuotes.reduce((best, current) => {
     const currentScore = (current as any).vendor?.composite_score || 0
     const bestScore = (best as any).vendor?.composite_score || 0
@@ -130,8 +126,79 @@ export default function QuoteComparisonDashboard({
         </div>
       )}
 
-      {/* Visual Price Comparison */}
+      {/* Detailed Comparison Table */}
       <div className="mb-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-3">Detailed Comparison</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="bg-gray-100">
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border">Vendor</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border">Price</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border">Rating</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border">Availability</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border">Recommended</th>
+              </tr>
+            </thead>
+            <tbody>
+              {receivedQuotes
+                .sort((a, b) => (a.price || 0) - (b.price || 0))
+                .map((quote) => {
+                      const vendor = (quote as any).vendor
+                      const isBest = bestValue && quote.id === bestValue.id
+                      const isHighestRated = highestRated && quote.id === highestRated.id
+
+                  return (
+                    <tr key={quote.id} className={`${isBest ? 'bg-green-50' : 'hover:bg-gray-50'} transition-colors`}>
+                      <td className="px-4 py-3 border">
+                        <div className="font-medium text-gray-900">{vendor?.business_name || 'Vendor'}</div>
+                        <div className="text-xs text-gray-500">{vendor?.phone || 'N/A'}</div>
+                      </td>
+                      <td className="px-4 py-3 border">
+                        <div className="font-bold text-gray-900">
+                          {currencySymbol}{quote.price?.toFixed(2)}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 border">
+                        <div className="flex items-center">
+                          <Star className="h-4 w-4 text-yellow-500 mr-1" />
+                          <span className="font-semibold text-gray-900">{vendor?.composite_score?.toFixed(1) || 'N/A'}</span>
+                          <span className="text-gray-600 text-sm font-medium">/10</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 border">
+                        <div className="text-sm text-gray-700">
+                          {quote.availability_date 
+                            ? new Date(quote.availability_date).toLocaleDateString()
+                            : 'TBD'}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 border">
+                        <div className="flex items-center space-x-1">
+                          {isBest && (
+                            <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full flex items-center">
+                              <Check className="h-3 w-3 mr-1" />
+                              Best Deal
+                            </span>
+                          )}
+                          {isHighestRated && (
+                            <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full flex items-center">
+                              <Star className="h-3 w-3 mr-1" />
+                              Top Rated
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Visual Price Comparison */}
+      <div>
         <h3 className="text-lg font-semibold text-gray-900 mb-3">Price Comparison</h3>
         <div className="space-y-3">
           {receivedQuotes
@@ -204,83 +271,6 @@ export default function QuoteComparisonDashboard({
                 </div>
               )
             })}
-        </div>
-      </div>
-
-      {/* Detailed Comparison Table */}
-      <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-3">Detailed Comparison</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="bg-gray-100">
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border">Vendor</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border">Price</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border">Rating</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border">Availability</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border">Price Range</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border">Recommended</th>
-              </tr>
-            </thead>
-            <tbody>
-              {receivedQuotes
-                .sort((a, b) => (a.price || 0) - (b.price || 0))
-                .map((quote) => {
-                      const vendor = (quote as any).vendor
-                      const isBest = bestValue && quote.id === bestValue.id
-                      const isHighestRated = highestRated && quote.id === highestRated.id
-
-                  return (
-                    <tr key={quote.id} className={`${isBest ? 'bg-green-50' : 'hover:bg-gray-50'} transition-colors`}>
-                      <td className="px-4 py-3 border">
-                        <div className="font-medium text-gray-900">{vendor?.business_name || 'Vendor'}</div>
-                        <div className="text-xs text-gray-500">{vendor?.phone || 'N/A'}</div>
-                      </td>
-                      <td className="px-4 py-3 border">
-                        <div className="font-bold text-gray-900">
-                          {currencySymbol}{quote.price?.toFixed(2)}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 border">
-                        <div className="flex items-center">
-                          <Star className="h-4 w-4 text-yellow-500 mr-1" />
-                          <span className="font-semibold text-gray-900">{vendor?.composite_score?.toFixed(1) || 'N/A'}</span>
-                          <span className="text-gray-600 text-sm font-medium">/10</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 border">
-                        <div className="text-sm text-gray-700">
-                          {quote.availability_date 
-                            ? new Date(quote.availability_date).toLocaleDateString()
-                            : 'TBD'}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 border">
-                        <div className="text-sm text-gray-700">
-                          {vendor?.price_level || 'N/A'}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 border">
-                        <div className="flex items-center space-x-1">
-                          {isBest && (
-                            <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full flex items-center">
-                              <Check className="h-3 w-3 mr-1" />
-                              Best Deal
-                            </span>
-                          )}
-                          {isHighestRated && (
-                            <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full flex items-center">
-                              <Star className="h-3 w-3 mr-1" />
-                              Top Rated
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-            </tbody>
-          </table>
         </div>
       </div>
 

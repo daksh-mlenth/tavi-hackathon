@@ -10,10 +10,11 @@ from app.services.communication_service import CommunicationService
 router = APIRouter()
 
 
-@router.get("/work-order/{work_order_id}", response_model=List[CommunicationLogResponse])
+@router.get(
+    "/work-order/{work_order_id}", response_model=List[CommunicationLogResponse]
+)
 def get_communications_for_work_order(
-    work_order_id: UUID,
-    db: Session = Depends(get_db)
+    work_order_id: UUID, db: Session = Depends(get_db)
 ):
     """Get all communications for a specific work order (unified stream)"""
     service = CommunicationService(db)
@@ -22,10 +23,7 @@ def get_communications_for_work_order(
 
 
 @router.get("/vendor/{vendor_id}", response_model=List[CommunicationLogResponse])
-def get_communications_for_vendor(
-    vendor_id: UUID,
-    db: Session = Depends(get_db)
-):
+def get_communications_for_vendor(vendor_id: UUID, db: Session = Depends(get_db)):
     """Get all communications with a specific vendor"""
     service = CommunicationService(db)
     communications = service.get_communications_for_vendor(vendor_id)

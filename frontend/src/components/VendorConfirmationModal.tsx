@@ -39,7 +39,6 @@ export default function VendorConfirmationModal({
   const handleChooseSimulate = async () => {
     setLoading(true)
     try {
-      // Generate AI message from Tavi to Facility Manager
       const facilityMsg = await generateTaviMessageToFacilityManager()
       setTaviMessageToFacility(facilityMsg)
       setStep('simulate_facility')
@@ -67,7 +66,6 @@ export default function VendorConfirmationModal({
   }
 
   const generateTaviMessageToFacilityManager = async () => {
-    // AI-generated message requesting facility manager approval
     const messages = [
       `Dear ${facilityName},\n\nWe have completed the vendor selection process for the work order and recommend ${vendorName} based on their competitive pricing, high ratings, and availability.\n\nKey Details:\n• Vendor: ${vendorName}\n• Status: Ready for dispatch\n\nPlease review and reply with "APPROVED" to proceed with vendor dispatch, or "REJECT" if you have concerns.\n\nBest regards,\nTavi AI System`,
       
