@@ -54,7 +54,18 @@ class AutomationService:
             self._running_automations[work_order_id_str] = True
 
         try:
+            self.db.expire_all()
+
             work_order = self.work_order_service.get_work_order(work_order_id)
+            if not work_order:
+                yield {
+                    "step": -1,
+                    "status": "error",
+                    "message": f"⚠️ Work order {work_order_id} not found",
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+                return
+
             if work_order.status in [
                 WorkOrderStatus.DISPATCHED,
                 WorkOrderStatus.COMPLETED,
@@ -144,7 +155,17 @@ class AutomationService:
                 "timestamp": datetime.utcnow().isoformat(),
             }
 
+            self.db.expire_all()
             work_order = self.work_order_service.get_work_order(work_order_id)
+            if not work_order:
+                yield {
+                    "step": -1,
+                    "status": "error",
+                    "message": f"⚠️ Work order {work_order_id} not found",
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+                return
+
             currency_info = get_currency_info(
                 work_order.location_country or "United States"
             )
@@ -346,8 +367,14 @@ class AutomationService:
         }
 
     async def _auto_confirm_and_dispatch(self, work_order_id: UUID, quote_id: UUID):
+        self.db.expire_all()
         work_order = self.work_order_service.get_work_order(work_order_id)
+        if not work_order:
+            return
+
         quote = self.db.query(Quote).filter(Quote.id == quote_id).first()
+        if not quote:
+            return
 
         if not work_order.facility_manager_email:
             work_order.facility_manager_email = "manager@tavi.io"
@@ -437,9 +464,15 @@ class AutomationService:
     async def _try_single_vendor_confirmation(
         self, work_order_id: UUID, vendor: Dict, attempt_number: int
     ) -> Dict:
+        self.db.expire_all()
         work_order = self.work_order_service.get_work_order(work_order_id)
+        if not work_order:
+            return {"success": False, "reason": f"Work order {work_order_id} not found"}
+
         quote_id = UUID(vendor["quote_id"])
         quote = self.db.query(Quote).filter(Quote.id == quote_id).first()
+        if not quote:
+            return {"success": False, "reason": f"Quote {quote_id} not found"}
 
         if not work_order.facility_manager_email:
             work_order.facility_manager_email = "manager@tavi.io"
