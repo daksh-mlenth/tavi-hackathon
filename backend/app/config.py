@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     GOOGLE_PLACES_API_KEY: Optional[str] = None
     YELP_API_KEY: Optional[str] = None
 
-    CORS_ORIGINS: list = ["*"]  # Allow all origins for demo
+    CORS_ORIGINS: list = ["http://localhost:3000", "http://frontend:3000"]
 
     class Config:
         env_file = ".env"
